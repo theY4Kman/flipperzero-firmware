@@ -8,11 +8,12 @@
 
 import os
 from fbt.util import path_as_posix
-
-DefaultEnvironment(tools=[])
+import scons_compiledb
 
 EnsurePythonVersion(3, 8)
 
+env = DefaultEnvironment(tools=[])
+scons_compiledb.enable(env)
 # Progress(["OwO\r", "owo\r", "uwu\r", "owo\r"], interval=15)
 
 # This environment is created only for loading options & validating file/dir existence
