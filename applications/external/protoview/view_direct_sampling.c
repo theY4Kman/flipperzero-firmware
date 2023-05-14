@@ -108,7 +108,10 @@ void view_enter_direct_sampling(ProtoViewApp* app) {
 void view_exit_direct_sampling(ProtoViewApp* app) {
     DirectSamplingViewPrivData* privdata = app->view_privdata;
     if(privdata->captured) free(privdata->captured);
-    app->direct_sampling_enabled = false;
+
+    // NB(zk): retain previous acknowledgement state, so it only ever need be acked once per session
+    //         (it's rather annoying flipping between views and having to hit OK on it every time)
+    // app->direct_sampling_enabled = false;
 
     direct_sampling_timer_stop(app);
 
