@@ -1,5 +1,6 @@
 #include "subghz_remote_app_i.h"
 #include <lib/toolbox/path.h>
+#include <lib/toolbox/dir_walk.h>
 #include <flipper_format/flipper_format_i.h>
 
 #include <lib/subghz/protocols/protocol_items.h>
@@ -277,23 +278,62 @@ bool subrem_tx_stop_sub(SubGhzRemoteApp* app, bool forced) {
     return false;
 }
 
+bool find_single_file_in_dir(const char* dir_path, const char* extension, FuriString* file_path) {
+    bool res = false;
+    Storage* api = furi_record_open(RECORD_STORAGE);
+    DirWalk* dir_walk = dir_walk_alloc(api);
+    FuriString* name;
+    name = furi_string_alloc();
+
+    if(dir_walk_open(dir_walk, dir_path)) {
+        FileInfo fileinfo;
+        int num_files_found = 0;
+
+        while(num_files_found < 2 && dir_walk_read(dir_walk, name, &fileinfo) == DirWalkOK) {
+            if (!file_info_is_dir(&fileinfo) && furi_string_end_with_str(name, extension)) {
+                num_files_found++;
+            }
+        }
+
+        if(num_files_found == 1) {
+            res = true;
+            furi_string_set(file_path, name);
+        }
+    }
+
+    furi_string_free(name);
+    dir_walk_free(dir_walk);
+    furi_record_close(RECORD_STORAGE);
+
+    return res;
+}
+
 SubRemLoadMapState subrem_load_from_file(SubGhzRemoteApp* app) {
     furi_assert(app);
 
-    FuriString* file_path = furi_string_alloc();
     SubRemLoadMapState ret = SubRemLoadMapStateBack;
 
-    DialogsFileBrowserOptions browser_options;
-    dialog_file_browser_set_basic_options(&browser_options, SUBREM_APP_EXTENSION, &I_sub1_10px);
-    browser_options.base_path = SUBREM_APP_FOLDER;
+    bool res = false;
 
-    // Input events and views are managed by file_select
-    if(!dialog_file_browser_show(app->dialogs, app->file_path, app->file_path, &browser_options)) {
-    } else {
-        ret = subrem_map_file_load(app, furi_string_get_cstr(app->file_path));
+    // This is only true when app first loads. We only want to skip the file chooser
+    // on initial load; otherwise, we'd prevent access to configurator (and prevent the user from
+    // escaping the app, as the file chooser has the only avenue for exiting)
+    if (furi_string_equal(app->file_path, SUBREM_APP_FOLDER)) {
+        res = find_single_file_in_dir(SUBREM_APP_FOLDER, SUBREM_APP_EXTENSION, app->file_path);
     }
 
-    furi_string_free(file_path);
+    if(!res) {
+        DialogsFileBrowserOptions browser_options;
+        dialog_file_browser_set_basic_options(&browser_options, SUBREM_APP_EXTENSION, &I_sub1_10px);
+        browser_options.base_path = SUBREM_APP_FOLDER;
+
+        res = dialog_file_browser_show(app->dialogs, app->file_path, app->file_path, &browser_options);
+    }
+
+    // Input events and views are managed by file_select
+    if(res) {
+        ret = subrem_map_file_load(app, furi_string_get_cstr(app->file_path));
+    }
 
     return ret;
 }
